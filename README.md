@@ -6,7 +6,7 @@ A continuación se intenta dar un breve acercamiento al mundo de los fractales n
 
 ## Contenido
 
-- Implementación de fracatales de *Julia* y *Maldenbrot* en R.
+- Implementación de fractales de *Julia* y *Maldenbrot* en R.
 
 ---
 
