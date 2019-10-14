@@ -1,0 +1,661 @@
+---
+title: "Fractales"
+author: "crsd"
+date: "10 de Octubre de 2019"
+output: 
+      html_document:
+        code_folding: hide
+        css: air.css
+        highlight: tango
+        keep_md: yes
+        theme: united
+        toc: yes
+        toc_float: yes
+---
+
+<style>
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover {
+    background-color: #2F184F;
+}
+</style>
+
+
+```{r , cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 8, fig.align = "center")
+```
+
+# Resumen
+
+A continuación se intenta dar un breve acercamiento al mundo de los fractales no
+lineales e implementarlos en R. Para ello se verá una introducción al tema y posteriormente la implementación de diversos ejemplos de los fractales de *Julia*
+y *Maldenbrot* en R.
+
+# Introducción
+
+La palabra fractal fue acuñada por Benoit Mandelbrot, quien, al tratar de 
+encontrar nombre para su nueva invención y por casualidad, hojeó el cuaderno 
+de latín de su hijo donde encontró la palabra *fractus*, de la que se deriva
+la palabra *frangere* – fracturar, romper, hacer fragmentos irregulares.
+Y así es cómo los fractales recibieron su nombre.
+
+Hasta el momento hemos usado repetidamente la palabra fractal, y aunque ya se ha introducido una idea general sobre qué son los objetos fractales, con razón 
+nos podemos preguntar acerca del significado concreto de esta. El concepto de
+fractal se puede abordar desde varios puntos de vista, sin embargo se acepta 
+comúnmente que un fractal es un objeto geométrico compuesto de elementos, también geométricos, de tamaño y orientación variable, pero de aspecto similar. Con la particularidad que tienen muchos de los objetos fractales, es que si un objeto 
+fractal lo aumentamos, los elementos que aparecen vuelven a tener el mismo aspecto independientemente de cual sea la escala que utilizamos, y formando parte, como 
+en un mosaico de los elementos mayores, es decir, estos elementos tienen una estructura geométrica recursiva, esta propiedad es conocida con el nombre de autosimilaridad.
+
+El que cada elemento de orden mayor esté compuesto, a su vez, por elementos de orden menor, como sucede con las ramas de un árbol es lo que da estructura recursiva a los fractales.
+
+Para representar gráficamente un fractal basta por tanto encontrar la relación
+o la ley de recursividad entre las formas que se repiten, es decir, encontrar 
+el objeto elemental y la ley de formación y establecer el algoritmo gráfico.
+
+Las dos características fundamentales que poseen los objetos fractales son:
+
+- **Autosimilaridad:** anteriormente habíamos definido autosimilaridad como la 
+característica que presentan determinados objetos en los cuales los detalles 
+más pequeños que lo componen tienen alguna relación estadística con sus
+propiedades globales, repitiéndose tales detalles de una manera infinita.
+- **Dimensión Fractal o dimensión de Hausdorff:** es considerado el concepto 
+principal de la Geometría Fractal, ya que los objetos fractales se caracterizan 
+por poseer dimensión fraccionaria.
+
+Existen dos tipos bien definidos de fractales. Los lineales y los no lineales.
+
+Los fractales *lineales* son aquellos que se construyen con un simple cambio en la variación de sus escalas. Esto implica algo muy importante, los fractales
+lineales son exactamente idénticos en todas sus escalas hasta el infinito.
+El triángulo y la alfombra de Sierpinski y la curva de Koch son ejemplos de 
+fractales lineales.
+
+Los fractales *no lineales*, en cambio, son aquellos que se generan a partir de distorsiones complejas o justamente como lo dice su nombre, y usando un término proveniente de la matemática Caótica, distorsiones no lineales. La mayoría de 
+los objetos fractales puramente matemáticos y naturales son no lineales.
+Ejemplos de ellos son: el súper conocido Conjunto de Mandelbrot o el
+Conjunto de Julia.
+
+En los apartados siguientes se tratarán estos últimos.
+
+
+# Conjunto de Julia
+
+Los conjuntos de Julia, así llamados por el matemático Gaston Julia, son una familia
+de conjuntos fractales que se obtienen al estudiar el comportamiento de los números
+complejos al ser iterados por una [función holomorfa](https://es.wikipedia.org/wiki/Funci%C3%B3n_holomorfa). El conjunto de Julia de una función holomorfa $f(z)$ está construido por aquellos puntos que bajo la iteración de $f(z)$ tienen comportamiento "cáotico". El conjunto se denota $J(f)$, tal que:
+
+
+$$J(f) := \{z \in \mathbb{C}, f^{n}(z) \to converge\}$$
+
+$$f^{1}(z) = f(z)$$
+
+$$f^{n}(z) = f(f^{n-1}(z))$$
+
+De acuerdo a lo anterior, el **Conjunto de Julia** de la función $f$ está formado por los puntos del plano complejo para los cuales las iteraciones de la función en dichos puntos constituyen una sucesión no divergente.
+
+
+
+```{r Fractales, message=FALSE, warning=FALSE, cache=FALSE, comment="", echo=FALSE}
+suppressMessages(library(fields))
+suppressMessages(library(caTools))
+suppressMessages(library(EBImage))
+suppressMessages(library(RColorBrewer))
+algosJulia <- function(funcion, C = complex(real=-0.8, imag=0.156),
+                       m = 100, n = 20, r = 1.5, gamma = 0.7,
+                       stop = 0.93, verbose = FALSE){
+      # Variables:
+      # ------------------------------------------------------------------------
+      # funcion:   función a utilizar en el fractal.
+      # C:         constante compleja.
+      # m:         resolución de la matriz (mxm).
+      # n:         número de iteraciones.
+      # r:         rango de la matriz Z en el plano complejo, desde -r a r para
+      #            reales como imaginarios.
+      # gamma:     ajusta la inclinación de la función exponencial.
+      # stop:      detiene el algoritmo cuando la suma de los ceros es mayor 
+      #            o igual al umbral, 93% por defecto.
+      # verbose:   muestra el avance de las iteraciones.
+      
+      # nota1:     la salida de la función utiliza una exponencial para 
+      #            acotar el rango de salida entre 0 y 1.
+      # nota2:     los argumentos de la función deben considerar z como la 
+      #            variable iterativa, c como la constante, k como un argumento 
+      #            dependiente de la iteración (es opcional).
+      if(is.null(funcion)){return("Ingresar función a calcular")}
+      if(!is.null(funcion)){
+            Z <- complex(real=rep(seq(-r,r, length.out=m), each=m),
+                         imag=rep(seq(-r,r, length.out=m), m))
+            Z <- matrix(Z,m,m)
+            X <- matrix(0,m,m)
+            if(verbose){
+                  pb <- txtProgressBar(min = 0, max = n, style = 3, initial = 0)
+            }
+            for (k in 1:n) {
+                  Z <- funcion(z=Z,c=C, k=k)
+                  Z[is.na(Mod(Z))] <- max(Re(Z[!is.na(Z)])) + 1i*max(Im(Z[!is.na(Z)]))
+                  if(sum(exp(-gamma*abs(Z))==0)<=stop*m*m){ZZ <- Z}
+                  if(sum(exp(-gamma*abs(Z))==0)>stop*m*m){k <- n}
+                  if(verbose){setTxtProgressBar(pb, k)}
+            }
+            if(verbose){close(pb)}
+            X <- exp(-gamma*abs(ZZ))
+            return(X)     
+      }
+}
+algosMaldenbrot <- function(funcion, m = 100, n = 20, stop = 0.009,
+                            r = 1.5, gamma = 0.7, verbose = FALSE){
+      # Variables:
+      #-------------------------------------------------------------------------
+      # funcion:   función a utilizar en el fractal.
+      # m:         resolución de la matriz (mxm).
+      # n:         número de iteraciones.
+      # r:         rango de la matriz Z en el plano complejo, desde -r a r para
+      #            reales como imaginarios.
+      # gamma:     ajusta la inclinación de la función exponencial.
+      # stop:      detiene el algoritmo cuando la diferencia entre el penúltimo y
+      #            último es menor al umbral, 0.009 por defecto.
+      # only_result: TRUE, entrega el valor final del cálculo. FALSE, entrega
+      #            entrega un array con todas las iteraciones.
+      # verbose:   muestra el avance de las iteraciones.
+
+      # nota1:    la salida de la función utiliza una exponencial para 
+      #           acotar el rango de salida entre 0 y 1.
+      # nota2:    los argumentos de la función deben considerar z como la variable
+      #           iterativa, p como la potencia u otro 
+      #           que se considere necesario (es opcional), k como un argumento 
+      #           dependiente de la iteración (es opcional).
+      if(is.null(funcion)){return("Ingresar función a calcular")}
+      if(!is.null(funcion)){
+            CC <- matrix(0,m,m)
+            for (i in 1:m) {
+                  for (j in 1:m) {
+                        CC[i,j] <- (i-m/2)*2/m + 1i*(j-m/2)*2/m
+                  }
+            }
+            CC <- CC*r
+            Z <- matrix(0,m,m)
+            X <- matrix(0,m,m)
+            Xo <- matrix(1,m,m)
+            if(verbose){pb <- txtProgressBar(min = 0, max = n, style = 3, initial = 0)}
+            for (k in 1:n) {
+                  Z <- funcion(z=Z,c=CC, k=k)
+                  Z[is.na(Mod(Z))] <- max(Re(Z[!is.na(Z)])) + 1i*max(Im(Z[!is.na(Z)]))
+                  Xf <- exp(-gamma*abs(Z))
+                  if(sum(abs(Xf-Xo))<stop*m*m){
+                        k <- n
+                        break()
+                        }
+
+                  if(sum(abs(Xf-Xo))>=stop*m*m){
+                        X <- abind(X, Xf, along = 3)
+                        Xo <- Xf
+                  }
+                  if(verbose){setTxtProgressBar(pb, k)}
+            }
+            if(verbose){setTxtProgressBar(pb, n)}
+            X <- Xf
+            if(verbose){close(pb)}
+            return(X)
+      }
+}
+```
+
+
+## Representación Conjunto J {.tabset}
+
+Para representar los fractales se utilizará la expresión $e^{-\gamma*|z|}$, donde 
+$\gamma$ se ajusta caso a caso para mejorar la representación, normalmente $0.8$.
+
+Esto hace que los valores que divergen tiendan a 0 y los valores con módulo cercano
+a 0 tiendan a 1. 
+
+Lo colores se deben interpretar con *purpura oscuro* como valores cercanos a 0
+(divergentes), *verde* valores en torno a 0.5 y *azul* valores cercanos a 1.
+
+### Función Cuadrática {.tabset .tabset-fade}
+
+$$f(z) = z^{2} + c$$
+
+Este es el típico fractal de *Julia*, en cada uno de los valores de $c$ se observa
+que se desplegan a través de una recta, la pendiente de esta recta se puede determinar
+con el ángulo $atan(\frac{\mathbb{Im}(z)}{\mathbb{Re}(z)})$ respecto de la vertical.
+
+Los distintos valores de $c$ muestran resultados muy diferentes, con sólo una pequeña
+variación de fase o módulo de $c$ el fractal cambia completamente.
+
+
+#### C = -0.835 - 0.2321i
+
+```{r JuliaZ2, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+# parametros
+dim = 600
+method = "browser"
+umbral <- 0.93
+Result = TRUE
+# paleta colores
+addalpha <- function(colors, alpha=1.0) {
+  r <- col2rgb(colors, alpha=T)
+  r[4,] <- alpha*255
+  r <- r/255.0
+  return(rgb(r[1,], r[2,], r[3,], r[4,]))
+}
+col1 <- addalpha("#2F184F", 0.5)
+col2 <-"green"
+col3 <-addalpha("blue", 0.2)
+cr1 <- c(col1,col2,col3)
+cols <- colorRampPalette(cr1)(64)
+# puntos
+Cc <- c(-0.835 - 0.2321i, -1.476 - 0i, 0 - 1i, -0.4 + 0.6i, -0.8 + 0.156i)
+# Calculo fractales
+Im1 <- algosJulia(funcion = function(z,c,k){z^2+c},
+                 C = Cc[1], m = dim, n = 60, 
+                 r = 1.5, gamma = 0.8, stop = umbral)
+Im2 <- algosJulia(funcion = function(z,c,k){z^2+c},
+                  C = Cc[2], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = umbral)
+Im3 <- algosJulia(funcion = function(z,c,k){z^2+c},
+                  C = Cc[3], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = umbral)
+Im4 <- algosJulia(funcion = function(z,c,k){z^2+c},
+                  C = Cc[4], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = umbral)
+Im5 <- algosJulia(funcion = function(z,c,k){z^2+c},
+                  C = Cc[5], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = umbral)
+```
+
+```{r JuliaZ2_1, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im1), cols), method = method, all = Result)
+```
+
+#### C = -1.476 - 0i
+
+```{r JuliaZ2_2, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im2), cols), method = method, all = Result)
+```
+
+
+#### C = -0.4 + 0.6i
+
+```{r JuliaZ2_4, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im4), cols), method = method, all = Result)
+```
+
+#### C = -0.8 + 0.156i
+
+```{r JuliaZ2_5, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im5), cols), method = method, all = Result)
+```
+
+
+### Función Cúbica {.tabset .tabset-fade}
+
+$$f(z) = z^{3} + c$$
+
+La función cúbica también es una función típica utilizada para representar fractales.
+En este caso el *Conjunto de Julia* se distribuye en torno a 3 rectas que se unen en
+el origen con un ángulo de 120° entre cada una de ellas. El ángulo respecto a la vertical se puede determinar del mismo modo que para la función cuadrática.
+
+Se puede generalizar este resultado, considerando $n$ rectas para cualquier 
+función del tipo $f(z)=z^{n}+c$.
+
+
+```{r JuliaZ3, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+# Puntos
+Cc <- c(0.5*exp(2i*pi*5/360), 0.7*exp(2i*pi*140/360), 1.0*exp(2i*pi*270/360),
+        1.1*exp(2i*pi*270/360), 0.8*exp(2i*pi*96/360))
+Cc <- sapply(Cc, function(x){round(Re(Cc),3) + 1i*round(Im(Cc),3)})
+# Calculo fractales
+Im1 <- algosJulia(funcion = function(z,c,k){z^3+c},
+                 C = Cc[1], m = dim, n = 60, 
+                 r = 1.5, gamma = 0.8, stop = 0.93)
+Im2 <- algosJulia(funcion = function(z,c,k){z^3+c},
+                  C = Cc[2], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = 0.93)
+Im3 <- algosJulia(funcion = function(z,c,k){z^3+c},
+                  C = Cc[3], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = 0.93)
+Im4 <- algosJulia(funcion = function(z,c,k){z^3+c},
+                  C = Cc[4], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = 0.93)
+Im5 <- algosJulia(funcion = function(z,c,k){z^3+c},
+                  C = Cc[5], m = dim, n = 60, 
+                  r = 1.5, gamma = 0.8, stop = 0.93)
+```
+
+#### C = 0.498+0.044i
+
+```{r JuliaZ3_1, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im1), cols), method = method, all = Result)
+```
+
+#### C = -0.536+0.450i
+
+```{r JuliaZ3_2, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im2), cols), method = method, all = Result)
+```
+
+#### C = 0-1.1i
+
+```{r JuliaZ3_4, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im4), cols), method = method, all = Result)
+```
+
+#### C = -0.084+0.796i
+
+```{r JuliaZ3_5, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+EBImage::display(colormap(t(Im5), cols), method = method, all = Result)
+```
+
+
+### Fracción Polinómica I
+
+$$f(z) = \frac{z^{2} + 0.7}{z^{2} - 0.7}$$
+
+Este fractal representa un conjunto de elipses que convergen y divergen, cada una de
+estas rodeadas de elipses más pequeñas. Elipses convergentes rodeadas de elipses 
+divergente y viceversa.
+
+
+```{r JuliaF1, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im1 <- algosJulia(funcion = function(z,c,k){(z^2+c)/(z^2-c)},
+                 C = 0.7, m = dim, n = 60, 
+                 r = 1.7, gamma = 0.8, stop = 0.8)
+
+EBImage::display(colormap(t(Im1), cols), method = method, all = Result)
+```
+
+
+### Fracción Polinómica II
+
+$$f(z) = \frac{2(z^{3} - 2)}{3z}$$
+
+Esta función genera una aproximación al *Triángulo de Sierpinski*. Este es un fractal
+lineal que consiste una composición de triángulos de acuerdo al siguiente procedimiento:
+
+Consideramos una región triangular, la cual para simplificar suponemos delimitada por un triángulo equilátero de lado 1. Dividimos la región en cuatro regiones menores de igual área uniendo los puntos medios de los lados del triángulo original y, después, eliminamos el triángulo central. En cada triángulo restante repetimos el proceso de división-eliminación descrito para el primer triángulo.
+
+Repitiendo el proceso indefinidamente obtenemos una aproximación al *triángulo de Sierpinski*.
+
+
+```{r JuliaF2, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+
+Im2 <- algosJulia(funcion = function(z,c,p=-1,k){(2/3)*(z^3-c)/z},
+                  C = 2, m = dim, n = 60, 
+                  r = 2, gamma = 0.8, stop = 0.8)
+
+EBImage::display(colormap(t(Im2), cols), method = method, all = Result)
+
+```
+
+
+### Exponencial Cúbica
+
+$$f(z) = e^{z^3}$$
+
+Se observa que la curva exponencial tiende a diverger con valores altosu a converger 
+para valores bajos.
+
+En la zona de valores altos (divergentes), hay 3 zonas de convergencia/divergencia,
+esto se debe al $z^3$. Para $z^n$ se generan $n$ zonas de convergencia/divergencia.
+
+
+```{r JuliaF3, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+
+Im2 <- algosJulia(funcion = function(z,c,k){exp(z^3)+c},
+                  C = 0, m = dim, n = 60, 
+                  r = 2, gamma = 0.8, stop = 0.8)
+
+EBImage::display(colormap(t(Im2), cols), method = method, all = Result)
+
+```
+
+
+### Seno Hiperbólico Cuadrático
+
+$$f(z) = sinh(z+0.47+0.171i)^2$$
+
+Este fractal muestra simetría cierta simetría vertical con un desfase en el origen,
+donde se concentran las zonas de convergencia. Mientras se alejan de esta recta vertical aumenta la divergencia del fractal.
+
+```{r JuliaF4, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+dc <- 0.5*exp(2i*pi*20/360)
+dc <- round(Re(dc),3) + 1i*round(Im(dc),3)
+
+Im2 <- algosJulia(funcion = function(z,c,k){sinh(z+c)^2},
+                  C = dc, m = dim, n = 60, 
+                  r = 1.7, gamma = 0.8, stop = 0.7)
+
+EBImage::display(colormap(t(Im2), cols), method = method, all = Result)
+
+```
+
+
+
+# Conjunto de Maldenbrot
+
+El **Conjunto de Mandelbrot** o Conjunto M es considerado como el objeto geométrico
+más complicado creado por el hombre, claro que usando las herramientas tecnológicas. Igual como en el **Conjunto de Julia**, la frontera que delimita el objeto en el plano 
+complejo es un fractal.
+
+Su definición es similar al **Conjunto de Julia**, donde $z_0=0$ y $c$ normalmente
+equivale al plano complejo.
+
+$$M(f) := \{z,c \in \mathbb{C}, f^{n}(z,c) \to converge\}$$
+
+$$f^{1}(z,c) = f(z,c)$$
+
+$$z_0 = 0$$
+
+$$f^{n}(z,c) = f(f^{n-1}(z,c))$$
+
+
+El **Conjunto de Julia** es la iteración de una función, mientras que el 
+**Conjunto de Mandelbrot** es la iteración de infínitas funciones. Esto hace que
+el **Conjunto de Julia** sea un subconjunto del **Conjunto de Maldenbrot** y que 
+los fractales de Julia se puedan encontrar en los fractales de Maldenbrot de la 
+misma función. Además,  el valor $c$ determina si el conjunto es conexo o no.
+
+
+## Representación Conjunto M {.tabset}
+
+### Cuadrática
+
+$$f(z,c) = z^{2} + c$$
+
+Este es el fractal más conocido, presenta simetría en el eje vertical. Es importante señalar que cada vez que aparezca un $z^2$ en una función de un *Conjunto de Maldenbrot*, aparecerá este mismo fractal como parte del fractal principal.
+
+
+```{r MaldenbrotZ2, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im <- algosMaldenbrot(funcion = function(z,c,k){(z^2+c)}, m = dim, n = 100,
+                      r = 1.5, gamma = 0.8, stop = 0.001)
+EBImage::display(colormap(t(Im), cols), method = method, all = Result)
+```
+
+
+
+### Cúbica
+
+$$f(z,c) = z^{3} + c$$
+
+Este fractal tiene simetría vertical y horizontal, o sea, hay dos fractales similares
+respecto de la vertical, eso puede generalizarse si se considera que para $f(z)=z^n+c$
+hay $n-1$ fractales similares en torno al origen distribuidos con un ángulo de $\frac{2\pi}{n-1}$ respecto del fractal siguiente.
+
+```{r MaldenbrotZ3, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im <- algosMaldenbrot(funcion = function(z,c,k){(z^3+c)}, m = dim, n = 100,
+                      r = 1.5, gamma = 0.8, stop = 0.001)
+EBImage::display(colormap(t(Im), cols), method = method, all = Result)
+```
+
+
+
+### Fracción Polinómica I
+
+$$f(z,c) = \frac{z^{2} + c}{z^{2} - c}$$
+
+El *Conjunto de Julia* de esta función para $c=0.7$ está contenido en este fractal, también está contenido el fractal de la función $z^2$, estos 2 fractales, más muchos otros, generan este fractal.
+
+```{r MaldenbrotZF1, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im <- algosMaldenbrot(funcion = function(z,c,k){(z^2+c)/(z^2-c)}, m = dim, n = 100,
+                      r = 1.5, gamma = 0.8, stop = 0.001)
+EBImage::display(colormap(t(Im), cols), method = method, all = Result)
+```
+
+
+
+###  Fracción Polinómica II
+
+$$f(z,c) = \frac{z^{3}-c}{z-c+2}$$
+
+Este fractal diferente a los vistos anteriormente, presenta una amplia zona de convergencia
+y una pequeña zona de divergencia.
+
+```{r MaldenbrotF2, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im <- algosMaldenbrot(funcion = function(z,c,k){(2/3)*(z^3-c)/(z-c+2)}, m = dim, n = 100,
+                      r = 3.5, gamma = 0.8, stop = 0.001)
+EBImage::display(colormap(t(Im), cols), method = method, all = Result)
+```
+
+
+
+### Exponencial Cúbica
+
+$$f(z,c) = e^{z^3} + c$$
+
+El *Conjunto de Julia* de esta función para $c=0$ está contenido en este fractal, también está contenido el fractal de la función $z^3$, estos 2 fractales, más muchos otros, generan este fractal.
+
+```{r MaldenbrotF3, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im <- algosMaldenbrot(funcion = function(z,c,k){exp(z^3)+c}, m = dim, n = 100,
+                      r = 3.5, gamma = 0.8, stop = 0.001)
+EBImage::display(colormap(t(Im), cols), method = method, all = Result)
+```
+
+
+### Seno Hiperbólico al Cuadrado
+
+$$f(z,c) = sinh(z+c)^{2}$$
+
+El *Conjunto de Julia* de esta función para $c=0.47+0.171i$ está contenido en este fractal, también está contenido el fractal de la función $z^2$, estos 2 fractales, más muchos otros, generan este fractal.
+
+```{r MaldenbrotF4, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+Im <- algosMaldenbrot(funcion = function(z,c,k){sinh(z+c)^2}, m = dim, n = 100,
+                      r = 1.5, gamma = 0.8, stop = 0.001)
+EBImage::display(colormap(t(Im), cols), method = method, all = Result)
+```
+
+---
+
+# Código
+
+- Funciones de Julia y Maldenbrot:
+
+```{r code1, ref.label='Fractales', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Julia, función cuadrática (todos los puntos):
+
+```{r code2, ref.label='JuliaZ2', results='hide', echo=TRUE, eval=F}
+```
+
+- Visualización Fractal de Julia de función cuadrática (todos los puntos):
+
+```{r code3, ref.label='JuliaZ2_1', results='hide', echo=TRUE, eval=F}
+```
+
+```{r code4, ref.label='JuliaZ2_2', results='hide', echo=TRUE, eval=F}
+```
+
+```{r code5, ref.label='JuliaZ2_4', results='hide', echo=TRUE, eval=F}
+```
+
+```{r code6, ref.label='JuliaZ2_5', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Julia, función cúbica (todos los puntos):
+
+```{r code7, ref.label='JuliaZ3', results='hide', echo=TRUE, eval=F}
+```
+
+- Visualización Fractal de Julia de función cúbica (todos los puntos):
+
+```{r code8, ref.label='JuliaZ3_1', results='hide', echo=TRUE, eval=F}
+```
+
+```{r code9, ref.label='JuliaZ3_2', results='hide', echo=TRUE, eval=F}
+```
+
+```{r code10, ref.label='JuliaZ3_4', results='hide', echo=TRUE, eval=F}
+```
+
+```{r code11, ref.label='JuliaZ3_5', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Julia, función polinómica I:
+
+```{r code12, ref.label='JuliaF1', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Julia, función polinómica II:
+
+```{r code13, ref.label='JuliaF2', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Julia, función exponencial cúbica:
+
+```{r code14, ref.label='JuliaF3', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Julia, función seno hiperbólico cuadrático:
+
+```{r code15, ref.label='JuliaF4', results='hide', echo=TRUE, eval=F}
+```
+
+
+- Fractal de Maldenbrot, función cuadrática:
+
+```{r code16, ref.label='MaldenbrotZ2', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Maldenbrot, función cúbica:
+
+```{r code17, ref.label='MaldenbrotZ3', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Maldenbrot, función polinómica I:
+
+```{r code18, ref.label='MaldenbrotF1', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Maldenbrot, función polinómica II:
+
+```{r code19, ref.label='MaldenbrotF2', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Maldenbrot, función exponencial cúbica:
+
+```{r code20, ref.label='MaldenbrotF3', results='hide', echo=TRUE, eval=F}
+```
+
+- Fractal de Maldenbrot, función seno hiperbólico cuadrático:
+
+```{r code21, ref.label='MaldenbrotF4', results='hide', echo=TRUE, eval=F}
+```
+
+# Referencias
+
+Código y referencias bibliográficas en:
+https://github.com/desareca/Fractales
+
+# Sesión
+
+```{r session, cache=FALSE, comment="", echo=TRUE, warning=FALSE, echo=FALSE}
+sessionInfo()
+```
+
+
+
+
+
+
+
+
+
