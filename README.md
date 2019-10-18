@@ -7,8 +7,11 @@ A continuación se intenta dar un breve acercamiento al mundo de los fractales n
 ## Contenido
 
 - Implementación de fractales de *Julia* y *Maldenbrot* en R.
+- Aplicación de ejemplo para crear fractales.
 
 ---
 
 Referencia:
+
 http://rpubs.com/desareca/Fractales
+https://desareca.shinyapps.io/Fractales/
