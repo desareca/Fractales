@@ -14,4 +14,5 @@ A continuación se intenta dar un breve acercamiento al mundo de los fractales n
 Referencia:
 
 http://rpubs.com/desareca/Fractales
+
 https://desareca.shinyapps.io/Fractales/
