@@ -2,13 +2,13 @@
 
 ## Resumen
 
-A continuación se intenta dar un breve acercamiento al mundo de los fractales no lineales e implementarlos en R. Para ello se verá una introducción al tema y posteriormente la implementación de diversos ejemplos de los fractales de *Julia* y *Maldenbrot* en R. 
+A continuación se intenta dar un breve acercamiento al mundo de los fractales, sus propiedades e implementación en R.  
 
 ## Contenido
 
-- Implementación de fractales de *Julia* y *Maldenbrot* en R.
+- Implementación de fractales de **Julia** y **Maldenbrot** en R (*Fractales.Rmd*).
 - Aplicación de ejemplo para crear fractales.
-- Modificación plano inicial complejo del *fractal de Julia*.
+- Modificación plano inicial complejo del **fractal de Julia** (*Fractal_Julia.Rmd*).
 
 ---
 
